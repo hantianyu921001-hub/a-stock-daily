@@ -280,36 +280,40 @@ const html = `<!DOCTYPE html>
   }
   .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
 
-  /* === TOC (Table of Contents) === */
-  .toc {
-    background: var(--card-bg);
+  /* === Section Tabs === */
+  .section-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 12px 0;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .section-tabs::-webkit-scrollbar { display: none; }
+  .section-tab {
+    flex: 0 0 auto;
+    padding: 6px 14px;
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px 20px;
-    margin-bottom: 24px;
-  }
-  .toc-title {
-    font-size: 13px;
-    font-weight: 700;
+    border-radius: 20px;
+    background: var(--card-bg);
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 10px;
-  }
-  .toc-list { list-style: none; }
-  .toc-item { margin: 2px 0; }
-  .toc-item a {
-    display: block;
-    padding: 4px 8px;
-    color: var(--accent);
-    text-decoration: none;
-    font-size: 14px;
-    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
     transition: all 0.15s;
+    white-space: nowrap;
   }
-  .toc-item a:hover { background: #ebf8ff; }
-  .toc-item.h3 a { padding-left: 20px; font-size: 13px; color: var(--text-secondary); }
-  .toc-item.active a { background: #ebf8ff; font-weight: 600; }
+  .section-tab:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .section-tab.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
 
   /* === Responsive === */
   @media (max-width: 768px) {
@@ -420,26 +424,27 @@ function renderReport(index, navEl) {
     }
   );
 
-  // ---- Add anchor IDs to headings and build TOC ----
+  // ---- Add anchor IDs to headings and build section tabs ----
   const reportDate = r.date.replace(/-/g, '');
-  let tocItems = [];
+  let tabItems = [];
   let headingIndex = 0;
   html = html.replace(/<(h[23])([^>]*)>(.*?)<\\/\\1>/gi, (match, tag, attrs, text) => {
     const id = 'sec-' + reportDate + '-' + (headingIndex++);
     const level = tag.toLowerCase();
-    tocItems.push({ id, text: text.replace(/<[^>]+>/g, ''), level });
+    if (level === 'h2') {
+      tabItems.push({ id, text: text.replace(/<[^>]+>/g, '') });
+    }
     return '<' + tag + attrs + ' id="' + id + '">' + text + '</' + tag + '>';
   });
 
-  // Build TOC HTML
-  let tocHtml = '';
-  if (tocItems.length > 0) {
-    tocHtml = '<div class="toc"><div class="toc-title">📑 目录</div><ul class="toc-list">';
-    tocItems.forEach(item => {
-      const cls = item.level === 'h3' ? ' class="h3"' : '';
-      tocHtml += '<li class="toc-item' + (item.level === 'h3' ? ' h3' : '') + '"><a href="#' + item.id + '" onclick="document.getElementById(\\'' + item.id + '\\').scrollIntoView({behavior:\\'smooth\\'});return false">' + item.text + '</a></li>';
+  // Build section tabs HTML
+  let tabsHtml = '';
+  if (tabItems.length > 0) {
+    tabsHtml = '<div class="section-tabs" id="sectionTabs">';
+    tabItems.forEach((item, idx) => {
+      tabsHtml += '<button class="section-tab' + (idx === 0 ? ' active' : '') + '" data-target="' + item.id + '">' + item.text + '</button>';
     });
-    tocHtml += '</ul></div>';
+    tabsHtml += '</div>';
   }
 
   main.innerHTML = 
@@ -450,8 +455,37 @@ function renderReport(index, navEl) {
         ' <span class="' + mood.cls + '">' + mood.text + '</span>' +
       '</div>' +
     '</div>' +
-    tocHtml +
+    tabsHtml +
     '<div class="report-body">' + html + '</div>';
+
+  // Bind tab click events
+  document.querySelectorAll('.section-tab').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const targetId = this.getAttribute('data-target');
+      const target = document.getElementById(targetId);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.querySelectorAll('.section-tab').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+      }
+    });
+  });
+
+  // Scroll spy: update active tab on scroll
+  const sectionObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        document.querySelectorAll('.section-tab').forEach(btn => {
+          btn.classList.toggle('active', btn.getAttribute('data-target') === entry.target.id);
+        });
+      }
+    });
+  }, { rootMargin: '-10% 0px -70% 0px' });
+
+  tabItems.forEach(item => {
+    const el = document.getElementById(item.id);
+    if (el) sectionObserver.observe(el);
+  });
 
   // Scroll to top
   window.scrollTo(0, 0);
